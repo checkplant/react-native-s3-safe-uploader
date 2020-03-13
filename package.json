@@ -1,0 +1,33 @@
+{
+  "name": "react-native-s3-safe-uploader",
+  "version": "0.0.1",
+  "description": "Package to upload files to s3 and handle with bad/none network at upload time",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/checkplant/react-native-s3-safe-uploader.git"
+  },
+  "keywords": [
+    "aws",
+    "s3",
+    "upload"
+  ],
+  "author": "Checkplant <contato@checkplant.com.br> (http://www.checkplant.com.br)",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/checkplant/react-native-s3-safe-uploader/issues"
+  },
+  "homepage": "https://github.com/checkplant/react-native-s3-safe-uploader#readme",
+  "peerDependencies": {
+    "react": "^16.8.6",
+    "react-native": "^0.60.5"
+  },
+  "dependencies": {
+    "@react-native-community/netinfo": "4.6.1",
+    "aws-amplify": "^2.2.6",
+    "prop-types": "^15.7.2"
+  }
+}
