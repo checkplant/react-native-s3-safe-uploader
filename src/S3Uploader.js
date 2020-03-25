@@ -1,42 +1,76 @@
-import Amplify, { Storage } from 'aws-amplify';
+import React, { useState, useEffect } from 'react';
+import useAppState from 'react-native-appstate-hook';
+import { useNetInfo } from '@react-native-community/netinfo';
+import { StyleSheet, View, TouchableOpacity, Text } from 'react-native';
 
-class S3Uploader {
+import S3UploadAPI from './S3UploadAPI';
 
-  config({ identityPoolId, region, bucket }) {
-    Amplify.configure({
-      Auth: { identityPoolId, region },
-      Storage: { AWSS3: { bucket } }
-    });
-  }
 
-  upload(key, content, options) {
-    const { onProgress, onSuccess, onError, ...storageOptions } = options;
+const Button = ({ label, style, ...otherProps }) => {
+  return (
+    <TouchableOpacity style={{ borderRadius: 99, backgroundColor: 'red', paddingVertical: 4, paddingHorizontal: 8, ...style }} { ...otherProps }>
+      <Text style={{ fontSize: 12, fontWeight: 'bold', color: 'white', textAlign: 'center' }}>
+        {label}
+      </Text>
+    </TouchableOpacity>
+  );
+};
 
-    const handleProgressCallback = (progress) => {
-      console.log(`Uploaded: ${progress.loaded}/${progress.total}`, progress);
+const S3Uploader = ({ config, onSuccess, ...otherProps }) => {
 
-      if (onProgress)
-        onProgress(progress);
-    };
+  const { appState } = useAppState();
+  const { isConnected } = useNetInfo();
+  const [state, setState] = useState(S3UploadAPI.state.IDDLE);
 
-    const handleError = (message, error, callback) => {
-      console.log(message, error);
 
-      if (callback)
-        callback(error);
-    };
+  useEffect(() => {
+    if (config)
+      S3UploadAPI.config(config);
 
-    const handleSuccess = ({ key }) => {
-      Storage.get(key)
-        .then(url => onSuccess({ key, url }))
-        .catch(error => handleError('ERROR WHILE GETTING REMOTE FILE', error, onError));
-    };
+    if (onSuccess)
+      S3UploadAPI.onSuccess(onSuccess);
 
-    Storage.put(key, content, { progressCallback: handleProgressCallback, ...storageOptions })
-      .then(result => handleSuccess(result))
-      .catch(error => handleError('ERROR WHILE UPLOADING FILE', error, onError));
-  }
+    S3UploadAPI.onStateChange((newState, oldState) => setState(newState));
 
-}
+    return () => S3UploadAPI.clearListeners();
+  }, []);
 
-export default new S3Uploader();
+  useEffect(() => {
+    if (appState == 'active' && isConnected) {
+      S3UploadAPI.resume();
+      console.log('[S3UPLOADER] ready to resume functions!');
+    } else {
+      S3UploadAPI.pause();
+      console.log(`[S3UPLOADER] pausing functions... ${(appState != 'active') ? 'app went background...' : ''} ${!isConnected ? 'no internet connection...' : ''}`);
+    }
+  }, [appState, isConnected]);
+
+
+  const addSampletextFile = () => {
+    const fileName = new Date().toISOString().split(':').join('-');
+    const data = 'Content for sample text file with name ' + fileName;
+    S3UploadAPI.put(`tests/${fileName}.txt`, { data });
+  };
+
+  return (
+    <View style={{ flexDirection: 'row', alignItens: 'center', padding: 8 }}>
+      <Button label="Upload sample text" onPress={addSampletextFile} />
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+        <Text style={{ fontSize: 12, color: 'balck', textAlign: 'center' }}>{state}</Text>
+      </View>
+      <Button label="Pause" onPress={() => S3UploadAPI.pause()} />
+      <Button label="Resume" onPress={() => S3UploadAPI.resume()} style={{ marginLeft: 4 }} />
+    </View>
+  );
+
+};
+
+S3Uploader.config = (config) => S3UploadAPI.config(config);
+S3Uploader.pause = () => S3UploadAPI.pause();
+S3Uploader.resume = () => S3UploadAPI.resume();
+S3Uploader.put = (key, content, options) => S3UploadAPI.put(key, content, options);
+S3Uploader.onSuccess = (callback) => S3UploadAPI.onSuccess(callback);
+S3Uploader.onStateChange = (calolback) => S3UploadAPI.onStateChange(callback);
+S3Uploader.clearListeners = () => S3UploadAPI.clearListeners(callback);
+
+export default S3Uploader;
