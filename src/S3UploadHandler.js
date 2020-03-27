@@ -66,6 +66,10 @@ class S3UploadHandler {
       Storage.put(key, data, { ...storageOptions, progressCallback: handleProgressCallback })
         .then(result => handleSuccess(result))
         .catch(error => handleError(`[S3UPLOADHANDLER] error uploading with key ${key}`, error));
+
+      console.log(`[S3UPLOADHANDLER] upload process for key ${key} just started!`);
+    } else {
+      console.log('[S3UPLOADHANDLER] upload process halted, functions are paused');
     }
   }
 

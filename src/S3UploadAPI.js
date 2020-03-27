@@ -7,6 +7,8 @@ import UploadHandler from './S3UploadHandler';
 const ASYNC_STORAGE_QUEUE_KEY = '@S3Uploader_queue';
 
 const States = {
+  STARTING: 'starting',
+  READY: 'ready',
   PAUSED: 'paused',
   RESUMING: 'resuming',
   UPLOADING: 'uploading',
@@ -18,24 +20,55 @@ class S3UploadAPI {
   state = States;
 
   constructor() {
-    this._state = States.IDDLE;
+    this._state = States.STARTING;
     this._queue = [];
     this._eventEmitter = new EventEmitter();
-    this._eventEmitter.addListener('stateChange', this._stateWatcher);
+
+    this._startAPI();
   }
 
   _stateWatcher = (newState, oldState) => {
-    console.log(`[S3UPLOADAPI] state is now ${newState}`);
+    console.log(`[S3UPLOADAPI] state is now "${newState}"`);
 
     if (newState == States.PAUSED)
       this._pauseAndSaveQueue();
     else if (newState == States.RESUMING)
-      this._restoreQueue();
+      this._restoreQueueAndResume();
     else if (newState == States.IDDLE)
       this._processQueue();
   };
 
+  _loadPreviousQueue = async () => {
+    console.log('[S3UPLOADAPI] restoring previous queue...');
+    try {
+      const storageValue = await AsyncStorage.getItem(ASYNC_STORAGE_QUEUE_KEY);
+      if(storageValue !== null) {
+        const { queue = [] } = JSON.parse(storageValue);
+        this._queue = queue;
+      }
+      console.log(`[S3UPLOADAPI] previous queue restored with ${this._queue.length} jobs pending`, this._queue);
+    } catch (error) {
+      console.log('[S3UPLOADAPI] there was an error while restoring previous queue...', error);
+    }
+  };
+
+  _saveCurrentQueue = async () => {
+    this._queue.forEach(job => job.started = false);
+    const storageValue = JSON.stringify({ queue: this._queue });
+    await AsyncStorage.setItem(ASYNC_STORAGE_QUEUE_KEY, storageValue);
+
+    console.log(`[S3UPLOADAPI] queue saved, all ${this._queue.length} jobs marked as pending`, this._queue);
+  };
+
+  _startAPI = async () => {
+    console.log('[S3UPLOADAPI] starting...');
+    this._eventEmitter.addListener('stateChange', this._stateWatcher);
+    await this._loadPreviousQueue();
+    this._changeState(States.READY);
+  };
+
   _changeState = (newState) => {
+    console.log(`[S3UPLOADAPI] changing state from "${this._state}" to "${newState}"...`);
     if (newState !== this._state) {
       const oldState = this._state;
       this._state = newState;
@@ -44,29 +77,12 @@ class S3UploadAPI {
   };
 
   _pauseAndSaveQueue = async () => {
-    UploadHandler.pause();
-    this._queue.forEach(job => job.started = false);
-    const storageValue = JSON.stringify({ queue: this._queue });
-    await AsyncStorage.setItem(ASYNC_STORAGE_QUEUE_KEY, storageValue);
-
-    console.log(`[S3UPLOADAPI] queue saved, all ${this._queue.length} jobs marked as pending`, this._queue);
+    await this._saveCurrentQueue();
   };
 
-  _restoreQueue = async () => {
-    try {
-      UploadHandler.resume();
-      const storageValue = await AsyncStorage.getItem(ASYNC_STORAGE_QUEUE_KEY);
-      if(storageValue !== null) {
-        const { queue = [] } = JSON.parse(storageValue);
-        this._queue = queue;
-
-        console.log(`[S3UPLOADAPI] previous queue restored with ${this._queue.length} jobs pending`, this._queue);
-
-        this._changeState(States.IDDLE);
-      }
-    } catch (error) {
-      console.log('[S3UPLOADAPI] error restoring previous queue:', error);
-    }
+  _restoreQueueAndResume = async () => {
+    await this._loadPreviousQueue();
+    this._changeState(States.IDDLE);
   };
 
   _removeFromQueue = (key) => {
@@ -126,6 +142,7 @@ class S3UploadAPI {
     console.log(`[S3UPLOADAPI] upload job for key ${job.key} had an error`, error);
 
     job.started = false;
+
     // TODO: emitt error events (a single general error event or individual error events for each key?)
   };
 
@@ -147,11 +164,17 @@ class S3UploadAPI {
   }
 
   resume() {
+    UploadHandler.resume();
+
     if (this._state == States.PAUSED)
       this._changeState(States.RESUMING);
+    if (this._state == States.READY || this._state == States.IDDLE)
+      this._processQueue()
   }
 
   pause() {
+    UploadHandler.pause();
+
     if (this._state !== States.PAUSED)
       this._changeState(States.PAUSED);
   }
