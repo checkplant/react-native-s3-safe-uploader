@@ -1,6 +1,6 @@
 {
   "name": "react-native-s3-safe-uploader",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Package to upload files to s3 and handle with bad/none network at upload time",
   "main": "index.js",
   "scripts": {
@@ -27,8 +27,10 @@
     "react-native": ">=0.60"
   },
   "dependencies": {
-    "@react-native-community/netinfo": "^5.6.2",
+    "@react-native-community/async-storage": "^1.8.1",
+    "@react-native-community/netinfo": "4.6.1",
     "aws-amplify": "^2.2.6",
+    "react-native-appstate-hook": "^1.0.3",
     "prop-types": "^15.7.2"
   }
 }
